@@ -46,7 +46,7 @@ int main() {
     std::string programName = pass1.getProgramName();
     
     // ==================================================
-    // 4. [신규] Pass 2 실행
+    // 4. Pass 2 실행
     // ==================================================
     Pass2 pass2(&optab, &symtab, pass1.getIntFile(), 
                 startAddress, programLength, programName);
@@ -60,7 +60,7 @@ int main() {
     pass2.writeObjFile("output/OBJFILE");
     
     // ==================================================
-    // 5. [신규] 최종 결과 출력
+    // 5. 최종 결과 출력
     // ==================================================
     std::cout << "\n" << std::string(70, '=') << std::endl;
     std::cout << "     ASSEMBLY COMPLETED SUCCESSFULLY" << std::endl;
