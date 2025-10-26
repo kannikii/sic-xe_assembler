@@ -245,6 +245,9 @@ std::string Pass2::handleDirective(const IntermediateLine& line) {
     } else if (line.opcode == "RESW" || line.opcode == "RESB") {
         // T 레코드 분리
         return "";
+    }else if (line.opcode == "ORG") {
+        // ORG는 목적 코드 생성 없음, T 레코드 분리만 수행
+        return "";
     }
     return "";
 }
@@ -312,7 +315,7 @@ bool Pass2::execute()
     {
         IntermediateLine &line = intFile[i]; // objcode 저장을 위해 non-const 참조
 
-        if (line.opcode == "START")
+        if (line.opcode == "START" || line.opcode == "ORG")
         {
             continue;
         }
