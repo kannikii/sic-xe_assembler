@@ -30,20 +30,13 @@ int Pass1::getDirectiveLength(const std::string &directive, const std::string &o
     {
         try
         {
-            // 1. 숫자인지 시도
-            value = std::stoi(operand);
+            value = Parser::evaluateExpression(operand, symtab);
         }
-        catch (const std::invalid_argument &)
+        catch (const std::exception &)
         {
-            // 2. 숫자가 아니면 SYMTAB에서 심볼 조회
-            value = symtab->lookup(operand);
-            if (value == -1)
-            {
-                // SYMTAB에도 없음 (아직 정의되지 않은 심볼 사용 등)
-                std::cerr << "Error: Undefined symbol '" << operand
-                          << "' in directive " << directive << std::endl;
-                value = 0; // 오류 시 길이를 0으로 처리
-            }
+            std::cerr << "Error: Invalid expression in directive "
+                      << directive << ": " << operand << std::endl;
+            value = 0;
         }
     }
 
@@ -144,19 +137,12 @@ bool Pass1::execute(const std::string &srcFilename)
             int value = 0;
             try
             {
-                // 16진수(0x) 또는 10진수 모두 처리
-                if (parsed.operand.size() > 2 && parsed.operand.substr(0, 2) == "0x")
-                {
-                    value = std::stoi(parsed.operand.substr(2), nullptr, 16);
-                }
-                else
-                {
-                    value = std::stoi(parsed.operand);
-                }
+                value = Parser::evaluateExpression(parsed.operand, symtab);
             }
             catch (const std::exception &e)
             {
-                std::cerr << "Error at line " << lineNum << ": Invalid operand for EQU " << parsed.operand << std::endl;
+                std::cerr << "Error at line " << lineNum
+                          << ": Invalid expression for EQU: " << parsed.operand << std::endl;
                 continue;
             }
 
@@ -167,7 +153,7 @@ bool Pass1::execute(const std::string &srcFilename)
                           << ": Duplicate symbol " << parsed.label << std::endl;
             }
 
-            // INTFILE에 기록 (LOCCTR는 증가하지 않음)
+            // INTFILE에 기록
             IntermediateLine intLine;
             intLine.location = 0; // EQU는 특정 주소가 없음 (혹은 현재 LOCCTR)
             intLine.label = parsed.label;
@@ -179,6 +165,7 @@ bool Pass1::execute(const std::string &srcFilename)
 
             continue; // LOCCTR 증가 로직을 건너뜀
         }
+        // ORG 기계 독립적 기능 2
         if (parsed.opcode == "ORG")
         {
             // ORG는 LOCCTR를 변경
@@ -186,23 +173,8 @@ bool Pass1::execute(const std::string &srcFilename)
 
             try
             {
-                // 피연산자가 심볼인지 확인
-                if (symtab->exists(parsed.operand))
-                {
-                    newLoc = symtab->lookup(parsed.operand);
-                }
-                else
-                {
-                    // 숫자로 처리 (16진수 또는 10진수)
-                    if (parsed.operand.size() > 2 && parsed.operand.substr(0, 2) == "0x")
-                    {
-                        newLoc = std::stoi(parsed.operand.substr(2), nullptr, 16);
-                    }
-                    else
-                    {
-                        newLoc = std::stoi(parsed.operand);
-                    }
-                }
+
+                newLoc = Parser::evaluateExpression(parsed.operand, symtab);
             }
             catch (const std::exception &e)
             {
