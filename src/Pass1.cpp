@@ -1,7 +1,7 @@
 #include "../include/assembler.h"
 
-Pass1::Pass1(OPTAB *opt, SYMTAB *sym)
-    : optab(opt), symtab(sym), locctr(0), startAddr(0), programName("") {}
+Pass1::Pass1(OPTAB *opt, SYMTAB *sym, LITTAB *lit)
+    : optab(opt), symtab(sym), littab(lit), locctr(0), startAddr(0), programName("") {}
 
 int Pass1::getInstructionLength(const std::string &mnemonic, const std::string &operand)
 {
@@ -226,10 +226,28 @@ bool Pass1::execute(const std::string &srcFilename)
 
             continue; // 명령어 길이 계산 로직 건너뜀
         }
+        // LTORG 처리
+        if (parsed.opcode == "LTORG")
+        {
+            processLTORG(); // 리터럴 풀 생성
+
+            // INTFILE에 LTORG 기록
+            IntermediateLine intLine;
+            intLine.location = 0;
+            intLine.label = parsed.label;
+            intLine.opcode = parsed.opcode;
+            intLine.operand = parsed.operand;
+            intLine.objcode = "";
+            intLine.hasLocation = false;
+            intFile.push_back(intLine);
+
+            continue;
+        }
 
         // END 처리
         if (parsed.opcode == "END")
         {
+            processLTORG();
             IntermediateLine intLine;
             intLine.location = 0;
             intLine.label = parsed.label;
@@ -251,6 +269,31 @@ bool Pass1::execute(const std::string &srcFilename)
             {
                 std::cerr << "Warning at line " << lineNum
                           << ": Duplicate symbol " << parsed.label << std::endl;
+            }
+        }
+        // 리터럴 검사 (operand가 '='로 시작하면 리터럴)
+        if (!parsed.operand.empty() && parsed.operand[0] == '=')
+        {
+            // 리터럴을 LITTAB에 추가
+            std::string op = parsed.operand;
+
+            // Indexed 모드 처리 (,X 제거)
+            size_t comma = op.find(',');
+            if (comma != std::string::npos)
+            {
+                op = op.substr(0, comma);
+            }
+
+            // Immediate/Indirect 모드 처리 (#, @ 제거)
+            if (op[0] == '#' || op[0] == '@')
+            {
+                op = op.substr(1);
+            }
+
+            // 리터럴인지 확인
+            if (op[0] == '=')
+            {
+                littab->insert(op);
             }
         }
 
@@ -282,6 +325,31 @@ bool Pass1::execute(const std::string &srcFilename)
     file.close();
     std::cout << "Pass 1 completed: " << lineNum << " lines processed" << std::endl;
     return true;
+}
+
+void Pass1::processLTORG()
+{
+    // 미할당 리터럴들을 현재 LOCCTR 위치에 할당
+    std::vector<Literal> unassigned = littab->getUnassignedLiterals();
+
+    for (const auto &lit : unassigned)
+    {
+        // 리터럴에 주소 할당
+        littab->assignAddress(lit.name, locctr);
+
+        // 중간파일에 추가
+        IntermediateLine intLine;
+        intLine.location = locctr;
+        intLine.label = "*"; // 리터럴 표시
+        intLine.opcode = lit.name;
+        intLine.operand = lit.value;
+        intLine.objcode = "";
+        intLine.hasLocation = true;
+        intFile.push_back(intLine);
+
+        // LOCCTR 증가
+        locctr += lit.length;
+    }
 }
 
 void Pass1::writeIntFile(const std::string &intFilename)
@@ -366,7 +434,6 @@ int Pass1::getFinalLocctr() const
     return locctr;
 }
 
-// ======== [추가] ========
 const std::vector<IntermediateLine> &Pass1::getIntFile() const
 {
     return intFile;

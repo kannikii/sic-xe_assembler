@@ -46,6 +46,33 @@ public:
     void writeToFile(const std::string& filename) const;
 };
 
+
+// ==================== LITERAL ====================
+struct Literal {
+    std::string name;      // 예: =C'EOF'
+    std::string value;     // 예: C'EOF'
+    int address;           // 할당된 주소
+    int length;            // 바이트 길이
+    bool assigned;         // 주소 할당 여부
+};
+// LITTAB 클래스 (SYMTAB 클래스 아래에 추가)
+class LITTAB {
+private:
+    std::vector<Literal> table;
+    
+public:
+    LITTAB();
+    void insert(const std::string& literal);  // 리터럴 추가
+    bool exists(const std::string& literal) const;  // 리터럴 존재 확인
+    void assignAddress(const std::string& literal, int addr);  // 주소 할당
+    int getAddress(const std::string& literal) const;  // 주소 조회
+    int getLength(const std::string& literal) const;  // 길이 조회
+    std::string getValue(const std::string& literal) const;  // 값 조회
+    std::vector<Literal> getUnassignedLiterals() const;  // 미할당 리터럴 반환
+    void print() const;
+    void writeToFile(const std::string& filename) const;
+};
+
 // ==================== Parser ====================
 struct SourceLine {
     std::string label;
@@ -74,6 +101,7 @@ class Pass1 {
 private:
     OPTAB* optab;
     SYMTAB* symtab;
+    LITTAB* littab;
     std::vector<IntermediateLine> intFile;
     int locctr;
     int startAddr;
@@ -81,16 +109,17 @@ private:
     
     int getInstructionLength(const std::string& mnemonic, const std::string& operand);
     int getDirectiveLength(const std::string& directive, const std::string& operand, SYMTAB* symtab);
-
+    void processLTORG();
 public:
-    Pass1(OPTAB* opt, SYMTAB* sym);
+    Pass1(OPTAB* opt, SYMTAB* sym, LITTAB* lit);
     bool execute(const std::string& srcFilename);
     void writeIntFile(const std::string& intFilename);
     void printIntFile() const;
     int getProgramLength() const;
     int getStartAddress() const;
     int getFinalLocctr() const;
-    // ======== [추가] Pass 2에 데이터를 전달하기 위한 함수 ========
+    LITTAB* getLittab() const { return littab; }
+
     const std::vector<IntermediateLine>& getIntFile() const;
     std::string getProgramName() const;
     // =======================================================
@@ -101,6 +130,7 @@ class Pass2 {
 private:
     OPTAB* optab;
     SYMTAB* symtab;
+    LITTAB* littab;
     std::vector<IntermediateLine> intFile; // Pass1로부터 복사본
     int startAddr;
     int programLength;
@@ -138,7 +168,8 @@ private:
     int getRegisterNum(const std::string& reg) const;
 
 public:
-    Pass2(OPTAB* opt, SYMTAB* sym, const std::vector<IntermediateLine>& intF, 
+    Pass2(OPTAB* opt, SYMTAB* sym, LITTAB* lit, 
+          const std::vector<IntermediateLine>& intF,
           int start, int length, const std::string& progName);
     bool execute();
     void writeObjFile(const std::string& objFilename) const;

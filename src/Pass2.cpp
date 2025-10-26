@@ -1,9 +1,9 @@
 // ========== src/Pass2.cpp (신규 파일) ==========
 #include "../include/assembler.h"
 
-Pass2::Pass2(OPTAB *opt, SYMTAB *sym, const std::vector<IntermediateLine> &intF,
+Pass2::Pass2(OPTAB *opt, SYMTAB *sym, LITTAB *lit, const std::vector<IntermediateLine> &intF,
              int start, int length, const std::string &progName)
-    : optab(opt), symtab(sym), intFile(intF), startAddr(start),
+    : optab(opt), symtab(sym), littab(lit), intFile(intF), startAddr(start),
       programLength(length), programName(progName), firstExecAddr(start),
       currentTextRecordStartAddr(0), currentTextRecordLength(0)
 {
@@ -152,11 +152,16 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
     {
         p = 0; // RSUB는 주소 필드 0, non-relative
     }
+    else if (clean_op[0] == '=')
+    {
+        // 리터럴인 경우
+        target_addr = littab->getAddress(clean_op);
+        // p=1 (PC-relative)는 위에서 이미 설정됨
+    }
     else if (symtab->exists(clean_op))
     {
-        // 피연산자가 심볼 (e.g., J begin)
+        // 심볼인 경우
         target_addr = symtab->lookup(clean_op);
-        // p=1 (PC-relative)는 위에서 이미 설정됨
     }
     else
     {
@@ -164,7 +169,7 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
         try
         {
             target_addr = std::stoi(clean_op);
-            
+
             // [!] 여기가 핵심 수정 사항입니다.
             // 피연산자가 상수(숫자)이면, Simple/Direct 모드로 취급
             // (n=1, i=1은 이미 설정됨)
@@ -220,32 +225,43 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
 }
 
 // 지시어 처리 (WORD, BYTE, RESW, RESB)
-std::string Pass2::handleDirective(const IntermediateLine& line) {
+std::string Pass2::handleDirective(const IntermediateLine &line)
+{
     std::string op = line.operand;
-    
-    if (line.opcode == "WORD") {
+
+    if (line.opcode == "WORD")
+    {
         int val = std::stoi(op);
         return intToHex(val, 6);
-        
-    } else if (line.opcode == "BYTE") {
-        if (op.size() >= 3 && op[0] == 'C' && op[1] == '\'') {
+    }
+    else if (line.opcode == "BYTE")
+    {
+        if (op.size() >= 3 && op[0] == 'C' && op[1] == '\'')
+        {
             // C'...'
             std::string str_val = op.substr(2, op.length() - 3);
             std::string obj = "";
-            for (char c : str_val) {
+            for (char c : str_val)
+            {
                 obj += intToHex(static_cast<int>(c), 2);
             }
             return obj;
-        } else if (op.size() >= 3 && op[0] == 'X' && op[1] == '\'') {
+        }
+        else if (op.size() >= 3 && op[0] == 'X' && op[1] == '\'')
+        {
             // X'...'
             std::string hex_val = op.substr(2, op.length() - 3);
             // 헥사 코드가 홀수 길이면 앞에 0을 붙여 짝수로 만듦
             return (hex_val.length() % 2 == 0) ? hex_val : "0" + hex_val;
         }
-    } else if (line.opcode == "RESW" || line.opcode == "RESB") {
+    }
+    else if (line.opcode == "RESW" || line.opcode == "RESB")
+    {
         // T 레코드 분리
         return "";
-    }else if (line.opcode == "ORG") {
+    }
+    else if (line.opcode == "ORG")
+    {
         // ORG는 목적 코드 생성 없음, T 레코드 분리만 수행
         return "";
     }
@@ -315,8 +331,60 @@ bool Pass2::execute()
     {
         IntermediateLine &line = intFile[i]; // objcode 저장을 위해 non-const 참조
 
-        if (line.opcode == "START" || line.opcode == "ORG")
+        if (line.opcode == "START" || line.opcode == "ORG" || line.opcode == "LTORG")
         {
+            continue;
+        }
+        // 리터럴 처리 (label == "*")
+        if (line.label == "*")
+        {
+            // 리터럴의 목적 코드 생성
+            std::string litValue = littab->getValue(line.opcode);
+            std::string objCode = "";
+            int litLength = littab->getLength(line.opcode);
+
+            if (litValue.size() >= 3 && litValue[0] == 'C' && litValue[1] == '\'')
+            {
+                // C'...'
+                std::string str_val = litValue.substr(2, litValue.length() - 3);
+                for (char c : str_val)
+                {
+                    objCode += intToHex(static_cast<int>(c), 2);
+                }
+                // 3바이트 미만이면 00으로 패딩
+                while (objCode.length() < litLength * 2)
+                {
+                    objCode += "00";
+                }
+            }
+            else if (litValue.size() >= 3 && litValue[0] == 'X' && litValue[1] == '\'')
+            {
+                // X'...'
+                std::string hex_val = litValue.substr(2, litValue.length() - 3);
+                objCode = (hex_val.length() % 2 == 0) ? hex_val : "0" + hex_val;
+                // 3바이트 미만이면 00으로 패딩
+                while (objCode.length() < litLength * 2)
+                {
+                    objCode += "00";
+                }
+            }
+            else
+            {
+                // 숫자 리터럴 (항상 WORD = 3바이트)
+                try
+                {
+                    int val = std::stoi(litValue);
+                    objCode = intToHex(val, 6); // 6 hex digits = 3 bytes
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Error: Invalid literal value " << litValue << std::endl;
+                    objCode = "000000";
+                }
+            }
+
+            line.objcode = objCode;
+            appendToTextRecord(objCode, line.location);
             continue;
         }
 

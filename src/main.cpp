@@ -23,11 +23,16 @@ int main() {
     SYMTAB symtab;
     std::cout << "SYMTAB initialized successfully" << std::endl;
     
+    // LITTAB 생성 (추가)
+    std::cout << "\n[Step 3] Initializing LITTAB..." << std::endl;
+    LITTAB littab;
+    std::cout << "LITTAB initialized successfully" << std::endl;
+
     // ==================================================
     // 3. Pass 1 실행
     // ==================================================
-    std::cout << "\n[Step 3] Running Pass 1..." << std::endl;
-    Pass1 pass1(&optab, &symtab);
+    std::cout << "\n[Step 4] Running Pass 1..." << std::endl;
+    Pass1 pass1(&optab, &symtab, &littab);
     
     if (!pass1.execute("input/SRCFILE")) {
         std::cerr << "Pass 1 failed. Exiting..." << std::endl;
@@ -44,11 +49,15 @@ int main() {
     int startAddress = pass1.getStartAddress();
     int programLength = pass1.getProgramLength();
     std::string programName = pass1.getProgramName();
+
+    // LITTAB 파일 저장 (추가)
+    littab.writeToFile("output/LITTAB.txt");
+    std::cout << "LITTAB.txt saved." << std::endl;
     
     // ==================================================
     // 4. Pass 2 실행
     // ==================================================
-    Pass2 pass2(&optab, &symtab, pass1.getIntFile(), 
+    Pass2 pass2(&optab, &symtab, &littab, pass1.getIntFile(), 
                 startAddress, programLength, programName);
 
     if (!pass2.execute()) {
@@ -76,6 +85,7 @@ int main() {
     std::cout << "  - output/INTFILE (Pass 1 output)" << std::endl;
     std::cout << "  - output/SYMTAB.txt (Symbol table)" << std::endl;
     std::cout << "  - output/OBJFILE (Pass 2 output)" << std::endl;
+    std::cout << "  - output/LITTAB.txt (Literal table)" << std::endl;
     
     return 0;
 }
