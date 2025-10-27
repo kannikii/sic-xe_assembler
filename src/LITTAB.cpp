@@ -6,13 +6,12 @@ void LITTAB::insert(const std::string& literal) {
     if (exists(literal)) {
         return;
     }
-    
+
     Literal lit;
     lit.name = literal;
     lit.value = literal.substr(1);  // '=' 제거
     lit.address = -1;
     lit.assigned = false;
-    
     // 길이 계산
     std::string val = lit.value;
     int actualLength = 0;
@@ -34,7 +33,6 @@ void LITTAB::insert(const std::string& literal) {
     
     // 3바이트 미만이면 WORD(3바이트)로 처리
     lit.length = (actualLength < 3) ? 3 : actualLength;
-    
     table.push_back(lit);
 }
 

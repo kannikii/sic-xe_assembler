@@ -10,13 +10,11 @@ int OPTAB::determineFormat(const std::string& mnemonic) {
         mnemonic == "SVC" || mnemonic == "TIXR") {
         return 2;
     }
-    
     // Format 1 명령어들 (피연산자 없음)
     if (mnemonic == "FIX" || mnemonic == "FLOAT" || mnemonic == "HIO" || 
         mnemonic == "NORM" || mnemonic == "SIO" || mnemonic == "TIO") {
         return 1;
     }
-    
     // 나머지는 Format 3/4 (기본 3, + 접두사면 4)
     return 3;
 }
@@ -27,7 +25,6 @@ bool OPTAB::load(const std::string& filename) {
         std::cerr << "Error: Cannot open OPTAB file: " << filename << std::endl;
         return false;
     }
-
     std::string line;
     int lineNum = 0;
     while (std::getline(file, line)) {
@@ -46,7 +43,6 @@ bool OPTAB::load(const std::string& filename) {
             table[mnemonic] = info;
         }
     }
-    
     file.close();
     std::cout << "OPTAB loaded: " << table.size() << " instructions" << std::endl;
     return true;
