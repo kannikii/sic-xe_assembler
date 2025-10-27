@@ -83,6 +83,7 @@ struct SourceLine
     std::string label;
     std::string opcode;
     std::string operand;
+    bool isFormat4;
 };
 
 class Parser
@@ -108,6 +109,7 @@ struct IntermediateLine
     std::string operand;
     std::string objcode;
     bool hasLocation;
+    bool isFormat4;
 };
 
 class Pass1
@@ -140,7 +142,7 @@ public:
     // =======================================================
 };
 
-// ==================== [신규] Pass2 ====================
+// ==================== Pass2 ====================
 class Pass2
 {
 private:
@@ -171,6 +173,7 @@ private:
     std::string handleFormat1(const IntermediateLine &line);
     std::string handleFormat2(const IntermediateLine &line);
     std::string handleFormat3(const IntermediateLine &line, int nextLoc);
+    std::string handleFormat4(const IntermediateLine& line);
     std::string handleDirective(const IntermediateLine &line);
 
     // T 레코드 관리

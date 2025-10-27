@@ -5,6 +5,7 @@ SourceLine Parser::parseLine(const std::string& line) {
     result.label = "";
     result.opcode = "";
     result.operand = "";
+    result.isFormat4 = false;
     
     if (line.empty() || line[0] == '#') {
         return result;
@@ -32,6 +33,11 @@ SourceLine Parser::parseLine(const std::string& line) {
         std::string rest;
         std::getline(iss, rest);
         result.operand = trim(rest);
+    }
+    // Format 4 체크 (opcode가 '+'로 시작)
+    if (!result.opcode.empty() && result.opcode[0] == '+') {
+        result.isFormat4 = true;
+        result.opcode = result.opcode.substr(1);  // '+' 제거
     }
     
     return result;

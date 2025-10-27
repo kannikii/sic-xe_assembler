@@ -24,11 +24,13 @@ std::string Pass2::generateObjectCode(IntermediateLine &line, int nextLoc)
 {
     if (optab->isInstruction(line.opcode))
     {
+
+        if (line.isFormat4)
+        {
+            return handleFormat4(line);
+        }
         // 명령어 (Instruction)
         int format = optab->getFormat(line.opcode);
-
-        // 참고: 제공된 Pass1 코드는 Format 4를 비표준 방식(operand[0] == '+')으로
-        // 처리하려 하나, SRCFILE 예제에는 Format 4가 없으므로 Format 1, 2, 3만 구현합니다.
 
         switch (format)
         {
@@ -222,6 +224,93 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
     int obj = (first_byte << 16) | (flags << 12) | (disp & 0xFFF);
 
     return intToHex(obj, 6);
+}
+
+// Format 4: Opcode (6b) + nixbpe (6b) + address (20b) = 32 bits
+std::string Pass2::handleFormat4(const IntermediateLine &line)
+{
+    int opcode_val = hexStringToInt(optab->getOpcode(line.opcode));
+    int n = 0, i = 0, x = 0, b = 0, p = 0, e = 1; // e=1 (extended)
+    int address = 0;
+
+    std::string op = line.operand;
+    std::string clean_op = op;
+
+    // 1. n, i 플래그 설정
+    if (op.empty())
+    {
+        // RSUB (피연산자 없음)
+        n = 1;
+        i = 1;
+        address = 0;
+    }
+    else if (op[0] == '#')
+    {
+        // Immediate
+        n = 0;
+        i = 1;
+        clean_op = op.substr(1);
+    }
+    else if (op[0] == '@')
+    {
+        // Indirect
+        n = 1;
+        i = 0;
+        clean_op = op.substr(1);
+    }
+    else
+    {
+        // Simple
+        n = 1;
+        i = 1;
+    }
+
+    // 2. x 플래그 설정 (Indexed)
+    size_t comma_x = clean_op.find(",X");
+    if (comma_x != std::string::npos)
+    {
+        x = 1;
+        clean_op = Parser::trim(clean_op.substr(0, comma_x));
+    }
+
+    // 3. Address 계산 (20비트 절대 주소)
+    // Format 4는 p=0, b=0 (non-relative, direct addressing)
+    p = 0;
+    b = 0;
+
+    if (!clean_op.empty() && clean_op[0] == '=')
+    {
+        // 리터럴
+        address = littab->getAddress(clean_op);
+    }
+    else if (symtab->exists(clean_op))
+    {
+        // 심볼
+        address = symtab->lookup(clean_op);
+    }
+    else if (!clean_op.empty())
+    {
+        // 상수
+        try
+        {
+            address = std::stoi(clean_op);
+        }
+        catch (const std::exception &)
+        {
+            std::cerr << "Error: Invalid operand for Format 4: " << clean_op << std::endl;
+            address = 0;
+        }
+    }
+
+    // 4. 조립 (32비트)
+    // [opcode(8) | n(1) | i(1) | x(1) | b(1) | p(1) | e(1)] [address(20)]
+    int first_byte = opcode_val + (n << 1) + i;
+    int flags = (x << 3) + (b << 2) + (p << 1) + e;
+
+    // 32비트 = 8자리 16진수
+    unsigned int obj = (first_byte << 24) | (flags << 20) | (address & 0xFFFFF);
+
+    return intToHex(obj, 8); // 8자리 16진수
 }
 
 // 지시어 처리 (WORD, BYTE, RESW, RESB)

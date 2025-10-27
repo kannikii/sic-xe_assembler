@@ -120,6 +120,7 @@ bool Pass1::execute(const std::string &srcFilename)
             intLine.operand = parsed.operand;
             intLine.objcode = "";
             intLine.hasLocation = true;
+            intLine.isFormat4 = false;
             intFile.push_back(intLine);
             continue;
         }
@@ -161,6 +162,7 @@ bool Pass1::execute(const std::string &srcFilename)
             intLine.operand = parsed.operand;
             intLine.objcode = "";
             intLine.hasLocation = false; // 주소 미출력
+            intLine.isFormat4 = false;
             intFile.push_back(intLine);
 
             continue; // LOCCTR 증가 로직을 건너뜀
@@ -194,6 +196,7 @@ bool Pass1::execute(const std::string &srcFilename)
             intLine.operand = parsed.operand;
             intLine.objcode = "";
             intLine.hasLocation = true; // ORG는 주소를 표시
+            intLine.isFormat4 = false;
             intFile.push_back(intLine);
 
             continue; // 명령어 길이 계산 로직 건너뜀
@@ -211,6 +214,7 @@ bool Pass1::execute(const std::string &srcFilename)
             intLine.operand = parsed.operand;
             intLine.objcode = "";
             intLine.hasLocation = false;
+            intLine.isFormat4 = false;
             intFile.push_back(intLine);
 
             continue;
@@ -227,6 +231,7 @@ bool Pass1::execute(const std::string &srcFilename)
             intLine.operand = parsed.operand;
             intLine.objcode = "";
             intLine.hasLocation = false;
+            intLine.isFormat4 = false;
             intFile.push_back(intLine);
             break;
         }
@@ -273,7 +278,16 @@ bool Pass1::execute(const std::string &srcFilename)
         int length = 0;
         if (optab->isInstruction(parsed.opcode))
         {
-            length = getInstructionLength(parsed.opcode, parsed.operand);
+            // Format 4인 경우 4바이트, 아니면 기본 format
+            if (parsed.isFormat4)
+            {
+                length = 4;
+            }
+            else
+            {
+                int format = optab->getFormat(parsed.opcode);
+                length = format;
+            }
         }
         else
         {
@@ -288,6 +302,7 @@ bool Pass1::execute(const std::string &srcFilename)
         intLine.operand = parsed.operand;
         intLine.objcode = "";
         intLine.hasLocation = true;
+        intLine.isFormat4 = parsed.isFormat4; // 추가
         intFile.push_back(intLine);
 
         // LOCCTR 증가
@@ -317,6 +332,7 @@ void Pass1::processLTORG()
         intLine.operand = lit.value;
         intLine.objcode = "";
         intLine.hasLocation = true;
+        intLine.isFormat4 = false;
         intFile.push_back(intLine);
 
         // LOCCTR 증가
