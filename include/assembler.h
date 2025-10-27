@@ -10,19 +10,25 @@
 #include <iomanip>
 #include <algorithm>
 
+struct ProgramBlock {
+    std::string name;
+    int number;
+    int startAddress;
+    int length;
+    int currentLocctr;
+};
+
 // ==================== OPTAB ====================
 struct InstructionInfo
 {
     std::string opcode;
-    int format; // 1, 2, 3/4
+    int format;
 };
 
 class OPTAB
 {
 private:
     std::map<std::string, InstructionInfo> table;
-
-    // 자동으로 형식 결정
     int determineFormat(const std::string &mnemonic);
 
 public:
@@ -35,30 +41,35 @@ public:
 };
 
 // ==================== SYMTAB ====================
-class SYMTAB
-{
+class SYMTAB {
 private:
-    std::map<std::string, int> table;
-
+    std::map<std::string, std::pair<int, int>> table;
+    const std::map<std::string, ProgramBlock>* programBlocks;
+    
 public:
     SYMTAB();
-    bool insert(const std::string &symbol, int address);
-    int lookup(const std::string &symbol) const;
-    bool exists(const std::string &symbol) const;
+    bool insert(const std::string& symbol, int address, int blockNum);
+    int lookup(const std::string& symbol) const;
+    int getBlockNumber(const std::string& symbol) const;
+    bool exists(const std::string& symbol) const;
+    
+    std::vector<std::string> getAllSymbols() const;
+    void updateAddress(const std::string& symbol, int newAddress);
+    void setProgramBlocks(const std::map<std::string, ProgramBlock>* blocks);
     void print() const;
-    void writeToFile(const std::string &filename) const;
+    void writeToFile(const std::string& filename) const;
 };
 
 // ==================== LITERAL ====================
 struct Literal
 {
-    std::string name;  // 예: =C'EOF'
-    std::string value; // 예: C'EOF'
-    int address;       // 할당된 주소
-    int length;        // 바이트 길이
-    bool assigned;     // 주소 할당 여부
+    std::string name;
+    std::string value;
+    int address;
+    int length;
+    bool assigned;
 };
-// LITTAB 클래스 (SYMTAB 클래스 아래에 추가)
+
 class LITTAB
 {
 private:
@@ -66,13 +77,13 @@ private:
 
 public:
     LITTAB();
-    void insert(const std::string &literal);                  // 리터럴 추가
-    bool exists(const std::string &literal) const;            // 리터럴 존재 확인
-    void assignAddress(const std::string &literal, int addr); // 주소 할당
-    int getAddress(const std::string &literal) const;         // 주소 조회
-    int getLength(const std::string &literal) const;          // 길이 조회
-    std::string getValue(const std::string &literal) const;   // 값 조회
-    std::vector<Literal> getUnassignedLiterals() const;       // 미할당 리터럴 반환
+    void insert(const std::string &literal);
+    bool exists(const std::string &literal) const;
+    void assignAddress(const std::string &literal, int addr);
+    int getAddress(const std::string &literal) const;
+    int getLength(const std::string &literal) const;
+    std::string getValue(const std::string &literal) const;
+    std::vector<Literal> getUnassignedLiterals() const;
     void print() const;
     void writeToFile(const std::string &filename) const;
 };
@@ -92,8 +103,6 @@ public:
     static SourceLine parseLine(const std::string &line);
     static std::string trim(const std::string &str);
     static bool startsWithWhitespace(const std::string &line);
-
-    // Expression 평가 함수 추가
     static int evaluateExpression(const std::string &expr, SYMTAB *symtab);
 
 private:
@@ -110,36 +119,41 @@ struct IntermediateLine
     std::string objcode;
     bool hasLocation;
     bool isFormat4;
+    int blockNumber;
 };
 
-class Pass1
-{
+class Pass1 {
 private:
-    OPTAB *optab;
-    SYMTAB *symtab;
-    LITTAB *littab;
+    OPTAB* optab;
+    SYMTAB* symtab;
+    LITTAB* littab;
     std::vector<IntermediateLine> intFile;
     int locctr;
     int startAddr;
     std::string programName;
-
-    int getInstructionLength(const std::string &mnemonic, const std::string &operand);
-    int getDirectiveLength(const std::string &directive, const std::string &operand, SYMTAB *symtab);
+    
+    std::map<std::string, ProgramBlock> programBlocks;
+    std::string currentBlock;
+    int blockCounter;
+    
     void processLTORG();
-
+    int getInstructionLength(const std::string& mnemonic, const std::string& operand);
+    int getDirectiveLength(const std::string& directive, const std::string& operand, SYMTAB* symtab);
+    void initializeBlocks();
+    void finalizeBlocks();
+    
 public:
-    Pass1(OPTAB *opt, SYMTAB *sym, LITTAB *lit);
-    bool execute(const std::string &srcFilename);
-    void writeIntFile(const std::string &intFilename);
+    Pass1(OPTAB* opt, SYMTAB* sym, LITTAB* lit);
+    bool execute(const std::string& srcFilename);
+    void writeIntFile(const std::string& intFilename);
     void printIntFile() const;
+    
     int getProgramLength() const;
     int getStartAddress() const;
     int getFinalLocctr() const;
-    LITTAB *getLittab() const { return littab; }
-
-    const std::vector<IntermediateLine> &getIntFile() const;
+    const std::vector<IntermediateLine>& getIntFile() const;
     std::string getProgramName() const;
-    // =======================================================
+    const std::map<std::string, ProgramBlock>& getProgramBlocks() const;
 };
 
 // ==================== Pass2 ====================
@@ -149,28 +163,31 @@ private:
     OPTAB *optab;
     SYMTAB *symtab;
     LITTAB *littab;
-    std::vector<IntermediateLine> intFile; // Pass1로부터 복사본
+    std::vector<IntermediateLine> intFile;
     int startAddr;
     int programLength;
     std::string programName;
-    int firstExecAddr; // E 레코드용
-    int baseRegister;   // Base register 값 (-1이면 미설정)
+    int firstExecAddr;
+    int baseRegister;
+    std::map<std::string, ProgramBlock> programBlocks;
 
-    // H, T, M, E 레코드
     std::string headerRecord;
     std::vector<std::string> textRecords;
     std::vector<std::string> modificationRecords;
     std::string endRecord;
 
-    // T 레코드 생성을 위한 버퍼
     std::string currentTextRecord;
     int currentTextRecordStartAddr;
-    int currentTextRecordLength; // 바이트 단위
+    int currentTextRecordLength;
 
-    // 레지스터 번호
+    std::string currentBlockName;
+    int currentBlockStartAddr;
+    
     std::map<std::string, int> registers;
 
-    // 목적 코드 생성
+    // 🔧 헬퍼 함수 추가
+    int getAbsoluteAddress(int blockNum, int offset) const;
+
     std::string generateObjectCode(IntermediateLine &line, int nextLoc);
     std::string handleFormat1(const IntermediateLine &line);
     std::string handleFormat2(const IntermediateLine &line);
@@ -178,25 +195,25 @@ private:
     std::string handleFormat4(const IntermediateLine& line);
     std::string handleDirective(const IntermediateLine &line);
 
-    // T 레코드 관리
     void startNewTextRecord(int loc);
     void appendToTextRecord(const std::string &objCode, int loc);
     void flushTextRecord();
 
-    // 유틸리티
     std::string intToHex(int val, int width) const;
     int hexStringToInt(const std::string &hexStr) const;
     int getRegisterNum(const std::string &reg) const;
     void addModificationRecord(int address, int length);
+
     
 public:
-    Pass2(OPTAB *opt, SYMTAB *sym, LITTAB *lit,
-          const std::vector<IntermediateLine> &intF,
-          int start, int length, const std::string &progName);
+    Pass2(OPTAB* opt, SYMTAB* sym, LITTAB* lit, 
+          const std::vector<IntermediateLine>& intF,
+          int start, int length, const std::string& progName,
+          const std::map<std::string, ProgramBlock>& blocks);
     bool execute();
     void writeObjFile(const std::string &objFilename) const;
     void printObjFile() const;
-    void printListingFile() const; // INTFILE에 objcode가 채워진 것을 출력
+    void printListingFile() const;
 };
 
 #endif
