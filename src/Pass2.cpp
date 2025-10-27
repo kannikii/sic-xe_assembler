@@ -5,7 +5,7 @@ Pass2::Pass2(OPTAB *opt, SYMTAB *sym, LITTAB *lit, const std::vector<Intermediat
              int start, int length, const std::string &progName)
     : optab(opt), symtab(sym), littab(lit), intFile(intF), startAddr(start),
       programLength(length), programName(progName), firstExecAddr(start),
-      currentTextRecordStartAddr(0), currentTextRecordLength(0)
+      currentTextRecordStartAddr(0), currentTextRecordLength(0), baseRegister(-1) // ← -1로 초기화
 {
     // 레지스터 테이블 초기화
     registers["A"] = 0;
@@ -206,10 +206,39 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
         }
         else
         {
-            // PC-relative 실패 (TODO: Base-relative 시도)
-            p = 0;
-            b = 0;
-            disp = target_addr & 0xFFF; // 12-bit Direct로 fallback
+            // PC-relative 실패 → Base-relative 시도
+            if (baseRegister != -1)
+            {
+                int disp_base = target_addr - baseRegister;
+
+                if (disp_base >= 0 && disp_base <= 4095)
+                {
+                    // Base-relative 성공
+                    p = 0;
+                    b = 1;
+                    disp = disp_base & 0xFFF;
+                    std::cout << "Using Base-relative for address 0x" << std::hex << target_addr
+                              << " (disp=" << disp << ")" << std::dec << std::endl;
+                }
+                else
+                {
+                    // Base-relative도 실패 → 12-bit Direct
+                    std::cerr << "Warning: Address 0x" << std::hex << target_addr
+                              << " out of range for both PC and Base relative" << std::dec << std::endl;
+                    p = 0;
+                    b = 0;
+                    disp = target_addr & 0xFFF;
+                }
+            }
+            else
+            {
+                // Base register 미설정 → 12-bit Direct
+                std::cerr << "Warning: PC-relative out of range and BASE not set for address 0x"
+                          << std::hex << target_addr << std::dec << std::endl;
+                p = 0;
+                b = 0;
+                disp = target_addr & 0xFFF;
+            }
         }
     }
     else
@@ -424,6 +453,37 @@ bool Pass2::execute()
         {
             continue;
         }
+
+        // BASE 지시어 처리 추가
+        if (line.opcode == "BASE")
+        {
+            if (symtab->exists(line.operand))
+            {
+                baseRegister = symtab->lookup(line.operand);
+                std::cout << "Base register set to: 0x" << std::hex << baseRegister << std::dec << std::endl;
+            }
+            else
+            {
+                try
+                {
+                    baseRegister = std::stoi(line.operand, nullptr, 16);
+                }
+                catch (const std::exception &)
+                {
+                    std::cerr << "Error: Invalid BASE operand: " << line.operand << std::endl;
+                }
+            }
+            continue;
+        }
+
+        // NOBASE 지시어 처리 추가 (Base register 해제)
+        if (line.opcode == "NOBASE")
+        {
+            baseRegister = -1;
+            std::cout << "Base register unset" << std::endl;
+            continue;
+        }
+
         // 리터럴 처리 (label == "*")
         if (line.label == "*")
         {

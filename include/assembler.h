@@ -154,6 +154,7 @@ private:
     int programLength;
     std::string programName;
     int firstExecAddr; // E 레코드용
+    int baseRegister;   // Base register 값 (-1이면 미설정)
 
     // H, T, E 레코드
     std::string headerRecord;

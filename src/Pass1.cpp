@@ -219,6 +219,36 @@ bool Pass1::execute(const std::string &srcFilename)
 
             continue;
         }
+        
+        // BASE 지시어 처리
+        if (parsed.opcode == "BASE")
+        {
+            IntermediateLine intLine;
+            intLine.location = 0;
+            intLine.label = parsed.label;
+            intLine.opcode = parsed.opcode;
+            intLine.operand = parsed.operand;
+            intLine.objcode = "";
+            intLine.hasLocation = false;
+            intLine.isFormat4 = false;
+            intFile.push_back(intLine);
+            continue;
+        }
+
+        // NOBASE 지시어 처리
+        if (parsed.opcode == "NOBASE")
+        {
+            IntermediateLine intLine;
+            intLine.location = 0;
+            intLine.label = parsed.label;
+            intLine.opcode = parsed.opcode;
+            intLine.operand = parsed.operand;
+            intLine.objcode = "";
+            intLine.hasLocation = false;
+            intLine.isFormat4 = false;
+            intFile.push_back(intLine);
+            continue;
+        }
 
         // END 처리
         if (parsed.opcode == "END")
