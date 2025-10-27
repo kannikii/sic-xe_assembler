@@ -156,9 +156,10 @@ private:
     int firstExecAddr; // E 레코드용
     int baseRegister;   // Base register 값 (-1이면 미설정)
 
-    // H, T, E 레코드
+    // H, T, M, E 레코드
     std::string headerRecord;
     std::vector<std::string> textRecords;
+    std::vector<std::string> modificationRecords;
     std::string endRecord;
 
     // T 레코드 생성을 위한 버퍼
@@ -186,7 +187,8 @@ private:
     std::string intToHex(int val, int width) const;
     int hexStringToInt(const std::string &hexStr) const;
     int getRegisterNum(const std::string &reg) const;
-
+    void addModificationRecord(int address, int length);
+    
 public:
     Pass2(OPTAB *opt, SYMTAB *sym, LITTAB *lit,
           const std::vector<IntermediateLine> &intF,

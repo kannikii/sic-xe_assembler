@@ -259,7 +259,7 @@ std::string Pass2::handleFormat3(const IntermediateLine &line, int nextLoc)
 std::string Pass2::handleFormat4(const IntermediateLine &line)
 {
     int opcode_val = hexStringToInt(optab->getOpcode(line.opcode));
-    int n = 0, i = 0, x = 0, b = 0, p = 0, e = 1; // e=1 (extended)
+    int n = 0, i = 0, x = 0, b = 0, p = 0, e = 1;
     int address = 0;
 
     std::string op = line.operand;
@@ -268,33 +268,29 @@ std::string Pass2::handleFormat4(const IntermediateLine &line)
     // 1. n, i 플래그 설정
     if (op.empty())
     {
-        // RSUB (피연산자 없음)
         n = 1;
         i = 1;
         address = 0;
     }
     else if (op[0] == '#')
     {
-        // Immediate
         n = 0;
         i = 1;
         clean_op = op.substr(1);
     }
     else if (op[0] == '@')
     {
-        // Indirect
         n = 1;
         i = 0;
         clean_op = op.substr(1);
     }
     else
     {
-        // Simple
         n = 1;
         i = 1;
     }
 
-    // 2. x 플래그 설정 (Indexed)
+    // 2. x 플래그 설정
     size_t comma_x = clean_op.find(",X");
     if (comma_x != std::string::npos)
     {
@@ -302,27 +298,36 @@ std::string Pass2::handleFormat4(const IntermediateLine &line)
         clean_op = Parser::trim(clean_op.substr(0, comma_x));
     }
 
-    // 3. Address 계산 (20비트 절대 주소)
-    // Format 4는 p=0, b=0 (non-relative, direct addressing)
+    // 3. Address 계산
     p = 0;
     b = 0;
 
+    bool needsModification = false; // M 레코드 필요 여부
+
     if (!clean_op.empty() && clean_op[0] == '=')
     {
-        // 리터럴
         address = littab->getAddress(clean_op);
+        needsModification = true; // 리터럴 주소도 재배치 필요
     }
     else if (symtab->exists(clean_op))
     {
-        // 심볼
         address = symtab->lookup(clean_op);
+        needsModification = true; // 심볼 주소는 재배치 필요
     }
     else if (!clean_op.empty())
     {
-        // 상수
         try
         {
             address = std::stoi(clean_op);
+            // Immediate 상수는 재배치 불필요
+            if (n == 0 && i == 1)
+            {
+                needsModification = false;
+            }
+            else
+            {
+                needsModification = true;
+            }
         }
         catch (const std::exception &)
         {
@@ -331,17 +336,21 @@ std::string Pass2::handleFormat4(const IntermediateLine &line)
         }
     }
 
-    // 4. 조립 (32비트)
-    // [opcode(8) | n(1) | i(1) | x(1) | b(1) | p(1) | e(1)] [address(20)]
+    // 4. 조립
     int first_byte = opcode_val + (n << 1) + i;
     int flags = (x << 3) + (b << 2) + (p << 1) + e;
-
-    // 32비트 = 8자리 16진수
     unsigned int obj = (first_byte << 24) | (flags << 20) | (address & 0xFFFFF);
 
-    return intToHex(obj, 8); // 8자리 16진수
-}
+    // 5. M 레코드 추가 (주소 필드만, 즉 5 half-bytes = 20비트)
+    // Format 4의 주소 필드는 명령어 시작 + 1바이트 위치에서 시작
+    // 길이는 5 half-bytes (20비트 / 4 = 5)
+    if (needsModification)
+    {
+        addModificationRecord(line.location + 1, 5);
+    }
 
+    return intToHex(obj, 8);
+}
 // 지시어 처리 (WORD, BYTE, RESW, RESB)
 std::string Pass2::handleDirective(const IntermediateLine &line)
 {
@@ -349,14 +358,25 @@ std::string Pass2::handleDirective(const IntermediateLine &line)
 
     if (line.opcode == "WORD")
     {
-        int val = std::stoi(op);
-        return intToHex(val, 6);
+        // 심볼인지 확인
+        if (symtab->exists(op))
+        {
+            int val = symtab->lookup(op);
+            // M 레코드 추가 (3바이트 = 6 half-bytes)
+            addModificationRecord(line.location, 6);
+            return intToHex(val, 6);
+        }
+        else
+        {
+            // 상수는 M 레코드 불필요
+            int val = std::stoi(op);
+            return intToHex(val, 6);
+        }
     }
     else if (line.opcode == "BYTE")
     {
         if (op.size() >= 3 && op[0] == 'C' && op[1] == '\'')
         {
-            // C'...'
             std::string str_val = op.substr(2, op.length() - 3);
             std::string obj = "";
             for (char c : str_val)
@@ -367,25 +387,20 @@ std::string Pass2::handleDirective(const IntermediateLine &line)
         }
         else if (op.size() >= 3 && op[0] == 'X' && op[1] == '\'')
         {
-            // X'...'
             std::string hex_val = op.substr(2, op.length() - 3);
-            // 헥사 코드가 홀수 길이면 앞에 0을 붙여 짝수로 만듦
             return (hex_val.length() % 2 == 0) ? hex_val : "0" + hex_val;
         }
     }
     else if (line.opcode == "RESW" || line.opcode == "RESB")
     {
-        // T 레코드 분리
         return "";
     }
     else if (line.opcode == "ORG")
     {
-        // ORG는 목적 코드 생성 없음, T 레코드 분리만 수행
         return "";
     }
     return "";
 }
-
 // ============================================================
 // T 레코드 관리 헬퍼
 // ============================================================
@@ -429,6 +444,14 @@ void Pass2::flushTextRecord()
     currentTextRecord = "";
     currentTextRecordLength = 0;
     currentTextRecordStartAddr = 0;
+}
+
+// M 레코드 추가 함수
+void Pass2::addModificationRecord(int address, int length)
+{
+    // M[시작주소(6자리)][길이(2자리)]
+    std::string mRecord = "M" + intToHex(address, 6) + intToHex(length, 2);
+    modificationRecords.push_back(mRecord);
 }
 
 // ============================================================
@@ -584,6 +607,12 @@ void Pass2::writeObjFile(const std::string &objFilename) const
     {
         file << tRec << std::endl;
     }
+
+    // M 레코드 출력
+    for (const auto &mRec : modificationRecords)
+    {
+        file << mRec << std::endl;
+    }
     file << endRecord << std::endl;
 
     file.close();
@@ -600,6 +629,11 @@ void Pass2::printObjFile() const
     for (const auto &tRec : textRecords)
     {
         std::cout << tRec << std::endl;
+    }
+    // M 레코드 출력
+    for (const auto &mRec : modificationRecords)
+    {
+        std::cout << mRec << std::endl;
     }
     std::cout << endRecord << std::endl;
     std::cout << std::string(80, '=') << std::endl;
