@@ -1,14 +1,14 @@
 #ifndef ASSEMBLER_H
 #define ASSEMBLER_H
 
-#include <string>
-#include <map>
-#include <vector>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <iomanip>
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
 
 struct ProgramBlock {
     std::string name;
@@ -19,14 +19,12 @@ struct ProgramBlock {
 };
 
 // ==================== OPTAB ====================
-struct InstructionInfo
-{
+struct InstructionInfo {
     std::string opcode;
     int format;
 };
 
-class OPTAB
-{
+class OPTAB {
 private:
     std::map<std::string, InstructionInfo> table;
     int determineFormat(const std::string &mnemonic);
@@ -44,25 +42,24 @@ public:
 class SYMTAB {
 private:
     std::map<std::string, std::pair<int, int>> table;
-    const std::map<std::string, ProgramBlock>* programBlocks;
-    
+    const std::map<std::string, ProgramBlock> *programBlocks;
+
 public:
     SYMTAB();
-    bool insert(const std::string& symbol, int address, int blockNum);
-    int lookup(const std::string& symbol) const;
-    int getBlockNumber(const std::string& symbol) const;
-    bool exists(const std::string& symbol) const;
-    
+    bool insert(const std::string &symbol, int address, int blockNum);
+    int lookup(const std::string &symbol) const;
+    int getBlockNumber(const std::string &symbol) const;
+    bool exists(const std::string &symbol) const;
+
     std::vector<std::string> getAllSymbols() const;
-    void updateAddress(const std::string& symbol, int newAddress);
-    void setProgramBlocks(const std::map<std::string, ProgramBlock>* blocks);
+    void updateAddress(const std::string &symbol, int newAddress);
+    void setProgramBlocks(const std::map<std::string, ProgramBlock> *blocks);
     void print() const;
-    void writeToFile(const std::string& filename) const;
+    void writeToFile(const std::string &filename) const;
 };
 
 // ==================== LITERAL ====================
-struct Literal
-{
+struct Literal {
     std::string name;
     std::string value;
     int address;
@@ -70,8 +67,7 @@ struct Literal
     bool assigned;
 };
 
-class LITTAB
-{
+class LITTAB {
 private:
     std::vector<Literal> table;
 
@@ -89,16 +85,14 @@ public:
 };
 
 // ==================== Parser ====================
-struct SourceLine
-{
+struct SourceLine {
     std::string label;
     std::string opcode;
     std::string operand;
     bool isFormat4;
 };
 
-class Parser
-{
+class Parser {
 public:
     static SourceLine parseLine(const std::string &line);
     static std::string trim(const std::string &str);
@@ -110,8 +104,7 @@ private:
 };
 
 // ==================== Pass1 ====================
-struct IntermediateLine
-{
+struct IntermediateLine {
     int location;
     std::string label;
     std::string opcode;
@@ -124,41 +117,40 @@ struct IntermediateLine
 
 class Pass1 {
 private:
-    OPTAB* optab;
-    SYMTAB* symtab;
-    LITTAB* littab;
+    OPTAB *optab;
+    SYMTAB *symtab;
+    LITTAB *littab;
     std::vector<IntermediateLine> intFile;
     int locctr;
     int startAddr;
     std::string programName;
-    
+
     std::map<std::string, ProgramBlock> programBlocks;
     std::string currentBlock;
     int blockCounter;
-    
+
     void processLTORG();
-    int getInstructionLength(const std::string& mnemonic, const std::string& operand);
-    int getDirectiveLength(const std::string& directive, const std::string& operand, SYMTAB* symtab);
+    int getInstructionLength(const std::string &mnemonic, const std::string &operand);
+    int getDirectiveLength(const std::string &directive, const std::string &operand, SYMTAB *symtab);
     void initializeBlocks();
     void finalizeBlocks();
-    
+
 public:
-    Pass1(OPTAB* opt, SYMTAB* sym, LITTAB* lit);
-    bool execute(const std::string& srcFilename);
-    void writeIntFile(const std::string& intFilename);
+    Pass1(OPTAB *opt, SYMTAB *sym, LITTAB *lit);
+    bool execute(const std::string &srcFilename);
+    void writeIntFile(const std::string &intFilename);
     void printIntFile() const;
-    
+
     int getProgramLength() const;
     int getStartAddress() const;
     int getFinalLocctr() const;
-    const std::vector<IntermediateLine>& getIntFile() const;
+    const std::vector<IntermediateLine> &getIntFile() const;
     std::string getProgramName() const;
-    const std::map<std::string, ProgramBlock>& getProgramBlocks() const;
+    const std::map<std::string, ProgramBlock> &getProgramBlocks() const;
 };
 
 // ==================== Pass2 ====================
-class Pass2
-{
+class Pass2 {
 private:
     OPTAB *optab;
     SYMTAB *symtab;
@@ -182,7 +174,7 @@ private:
 
     std::string currentBlockName;
     int currentBlockStartAddr;
-    
+
     std::map<std::string, int> registers;
 
     // 🔧 헬퍼 함수 추가
@@ -192,7 +184,7 @@ private:
     std::string handleFormat1(const IntermediateLine &line);
     std::string handleFormat2(const IntermediateLine &line);
     std::string handleFormat3(const IntermediateLine &line, int nextLoc);
-    std::string handleFormat4(const IntermediateLine& line);
+    std::string handleFormat4(const IntermediateLine &line);
     std::string handleDirective(const IntermediateLine &line);
 
     void startNewTextRecord(int loc);
@@ -204,12 +196,11 @@ private:
     int getRegisterNum(const std::string &reg) const;
     void addModificationRecord(int address, int length);
 
-    
 public:
-    Pass2(OPTAB* opt, SYMTAB* sym, LITTAB* lit, 
-          const std::vector<IntermediateLine>& intF,
-          int start, int length, const std::string& progName,
-          const std::map<std::string, ProgramBlock>& blocks);
+    Pass2(OPTAB *opt, SYMTAB *sym, LITTAB *lit,
+          const std::vector<IntermediateLine> &intF,
+          int start, int length, const std::string &progName,
+          const std::map<std::string, ProgramBlock> &blocks);
     bool execute();
     void writeObjFile(const std::string &objFilename) const;
     void printObjFile() const;

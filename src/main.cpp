@@ -1,7 +1,6 @@
 #include "../include/assembler.h"
 
-int main()
-{
+int main() {
     std::cout << "\n"
               << std::string(70, '=') << std::endl;
     std::cout << "           SIC/XE ASSEMBLER" << std::endl;
@@ -10,8 +9,7 @@ int main()
     // 1. OPTAB 로드
     std::cout << "\n[Step 1] Loading OPTAB..." << std::endl;
     OPTAB optab;
-    if (!optab.load("input/optab.txt"))
-    {
+    if (!optab.load("input/optab.txt")) {
         std::cerr << "Failed to load OPTAB. Exiting..." << std::endl;
         return 1;
     }
@@ -30,8 +28,7 @@ int main()
     std::cout << "\n[Step 4] Running Pass 1..." << std::endl;
     Pass1 pass1(&optab, &symtab, &littab);
 
-    if (!pass1.execute("input/SRCFILE"))
-    {
+    if (!pass1.execute("input/SRCFILE")) {
         std::cerr << "Pass 1 failed. Exiting..." << std::endl;
         return 1;
     }
@@ -55,8 +52,7 @@ int main()
     Pass2 pass2(&optab, &symtab, &littab, pass1.getIntFile(),
                 startAddress, programLength, programName,
                 pass1.getProgramBlocks());
-    if (!pass2.execute())
-    {
+    if (!pass2.execute()) {
         std::cerr << "Pass 2 failed. Exiting..." << std::endl;
         return 1;
     }
